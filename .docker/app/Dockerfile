@@ -10,7 +10,8 @@ USER root
 # affected version is still installed. Replacing the binary drops the
 # cap_net_bind_service file capability the base image sets so Apache can bind
 # port 80 as www-data; setcap restores it.
-# Don't enable http2 (a2enmod http2 / Protocols h2) until Apache >= 2.4.71.
+# HTTP/2 stays off in the dev image (a2enmod http2 / Protocols h2): the guard
+# below enforces it. Remove the guard deliberately if HTTP/2 is ever needed.
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends --only-upgrade apache2 apache2-bin apache2-data apache2-utils \
   && rm -rf /var/lib/apt/lists/* \
@@ -19,12 +20,13 @@ RUN apt-get update \
   || { echo "apache2 upgrade failed or apache2-bin is still < 2.4.71 (CVE-2026-119618)" >&2; exit 1; }
 
 # Keep HTTP/2 off and fail loudly if anything has enabled it. Only enabled
-# config is checked: mods-available/http2.conf ships "Protocols h2 ..." and is
-# inert unless the module is enabled.
+# config is checked, and -R follows the *-enabled symlinks into *-available:
+# mods-available/http2.conf ships "Protocols h2 ..." and is inert unless the
+# module is enabled.
 RUN a2dismod -f http2 >/dev/null 2>&1 || true; \
   if [ -e /etc/apache2/mods-enabled/http2.load ] \
     || apache2ctl -M 2>/dev/null | grep -qi http2_module \
-    || grep -rqiE '^\s*Protocols\b.*\bh2c?\b' /etc/apache2/apache2.conf /etc/apache2/ports.conf /etc/apache2/*-enabled/; then \
+    || grep -RqiE '^\s*Protocols\b.*\bh2c?\b' /etc/apache2/apache2.conf /etc/apache2/ports.conf /etc/apache2/*-enabled/; then \
     echo "HTTP/2 is enabled in Apache; keep it off (CVE-2026-119618)" >&2; exit 1; \
   fi
 
