@@ -13,7 +13,9 @@ USER root
 # HTTP/2 stays off in the dev image (a2enmod http2 / Protocols h2): the guard
 # below enforces it. Remove the guard deliberately if HTTP/2 is ever needed.
 RUN apt-get update \
-  && apt-get install --yes --no-install-recommends --only-upgrade apache2 apache2-bin apache2-data apache2-utils \
+  && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+       -o Dpkg::Options::=--force-confold --only-upgrade \
+       apache2 apache2-bin apache2-data apache2-utils \
   && rm -rf /var/lib/apt/lists/* \
   && setcap cap_net_bind_service=+ep /usr/sbin/apache2 \
   && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apache2-bin)" ge "2.4.71-0~" \
